@@ -5,8 +5,16 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "dspy>=2.6.17",
+    "imbalanced-learn>=0.13.0",
     "notebook>=7.4.0",
     "pandas>=2.2.3",
-    "polars>=1.27.1",
     "synergy-dataset>=1.2",
+    "tqdm>=4.67.1",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.5",
+    "jupyterlab-vim>=4.1.4",
 ]
