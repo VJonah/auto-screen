@@ -40,16 +40,28 @@ def mcc(c: Counter) -> float:
         return dividend/divisor
     return float('nan')
     
-def validate_all_criteria(example,
+def confusion_validate_all_criteria(example,
                           pred,
                           trace=None) -> str | bool:
     """
     Validates a collection of inclusion/exclusion 
     criteria and their satisfiability, only if all 
-    criteria are True/satisfied.
+    criteria are True/satisfied. Before passing it on
+    for confusion matrix validation.
     """
-    pred.relevant = all(pred.satisfied.values())
+    pred.relevant = all(pred.satisfied)
     return confusion_validate(example, pred, trace=trace)
+
+def validate_all_criteria(example,
+                                pred,
+                                trace=None) -> bool:
+    """
+    Validates a collection of inclusion/exclusion
+    criteria and their satisfiability, only if all 
+    criteria are True/satisfied. Used mostly
+    for training only.
+    """
+    return example.relevant == all(pred.satisfied)
     
 def confusion_validate(example, 
                        pred, 
@@ -75,26 +87,7 @@ def confusion_validate(example,
     else:
         return example.relevant == pred.relevant
 
-def batch_sr_eval(program: dspy.Program,
-                  devset: dict[str,list[dspy.Example]],
-                  eval_func: Callable = f1_evaluate,
-                  metric: Callable = validate_all_criteria): -> None:
-    """
-    Evaluates a batch of Systematic Reviews one at at time.
 
-    Keyword arguments:
-    program   --  the dspy program/module to evaluate
-    devset    --  a dict of id-devset pairs to evaluate against
-    eval_func --  the specific evaluation function to use 
-                  (default f1_evaluate)
-    metric    --  the specific metric to evaluate predictions
-                  against (default validate_all_criteria)
-    """
-    
-    for batch_id, data in devset.items():
-        sr_title, data = data[0], data[1:][0]
-        print(f"Batch: {batch_id}")
-        eval_fun(program(sr_title), data, metric)
     
 def f1_evaluate(program: dspy.Program,
                devset: list[dspy.Example],
@@ -136,3 +129,23 @@ def f1_evaluate(program: dspy.Program,
     print(f"F1: {f1:.3f}")
     print(f"MCC: {mcc(c):.3f}")
     print(f"Specificity: {specificity(c):.3f}")
+
+def batch_sr_eval(program: dspy.Program,
+                  devset: dict[str,list[dspy.Example]],
+                  eval_func: Callable = f1_evaluate,
+                  metric: Callable = confusion_validate_all_criteria) -> None:
+    """
+    Evaluates a batch of Systematic Reviews one at at time.
+
+    Keyword arguments:
+    program   --  the dspy program/module to evaluate
+    devset    --  a dict of id-devset pairs to evaluate against
+    eval_func --  the specific evaluation function to use 
+                  (default f1_evaluate)
+    metric    --  the specific metric to evaluate predictions
+                  against (default validate_all_criteria)
+    """
+    
+    for batch_id, data in devset.items():
+        print(f"Batch: {batch_id}")
+        eval_func(program, data, metric)
