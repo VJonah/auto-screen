@@ -1,6 +1,11 @@
+# std lib imports
+from random import Random
+
 # pkg imports
+import dspy
 import pandas as pd
 import numpy as np
+
 
 from imblearn.under_sampling import RandomUnderSampler
 
@@ -30,7 +35,7 @@ def get_synergy_data(sr_ids: list[str] | None) -> pd.DataFrame:
     # a dict to map a citation_id to their title
     citation2title = syn_titles_df.to_dict(orient='dict')['title']
 
-    if cols:
+    if sr_ids:
         # only keep the systematic reviews that were asked for
         filtered_df = syn_df[syn_df['SR_id'].isin(sr_ids)]
         
@@ -49,14 +54,21 @@ def get_synergy_data(sr_ids: list[str] | None) -> pd.DataFrame:
     return filtered_df
 
 def create_batched_devset(df: pd.DataFrame,
-                          rus: RandomUnderSampler) -> pd.DataFrame:
+                          size: int = 100,
+                          percent: float = 0.5,
+                          rng: Random = Random(42)) -> pd.DataFrame:
     """
     Creates a development set batched by systematic review.
 
     Keyword arguments:
-    df  -- the dataframe of systematic review citations to batch
-    rus -- the initialised RandomUnderSampler that will perform
-           the undersampling
+    df      -- the dataframe of systematic review citations to batch
+    size    -- the number of citations that should be included 
+               in each batch (default 100)
+    percent -- the maximum percentage positive labels are allowed
+               to represent in the batch (default 0.5)
+    rng     -- the random number generate to be used to generate 
+               the parameters for the RandomUnderSampler instance
+               (default Random(42))
     """
     
     # initialise empty dictionary
@@ -65,13 +77,25 @@ def create_batched_devset(df: pd.DataFrame,
     # iterate through citations grouped by systematic review
     for sr_title, group in df.groupby(by='SR_title'):
         sr_id = group['SR_id'].iloc[0]
-    
+
+        # get the number of the relevant/positive citations in the group
+        n_relevant = len(group[group['relevant']])
+
+        # randomly select the number of positivie datapoints to include
+        n = min(rng.randrange(1, n_relevant), int(size*percent))
+
+        # create a random undersampler
+        rus = RandomUnderSampler(random_state=42, sampling_strategy={0: size-n, 1:n})
+
+        # randomly undersample the data
         Xs, Ys  = rus_dataset(group, ['title', 'abstract'], 'relevant', rus)
 
-        devset[sr_id] = [sr_title]
-        devset[sr_id].append([dspy.Example(citation_title=x[0], citation_abstract=x[1], relevant=y)\
-                          .with_inputs('citation_title', 'citation_abstract')
-                          for x, y in zip(Xs, Ys)])
+        devset[sr_id] = [dspy.Example(sr_title=sr_title,
+                                      citation_title=x[0],
+                                      citation_abstract=x[1],
+                                      relevant=y)\
+                         .with_inputs('sr_title', 'citation_title', 'citation_abstract')
+                         for x, y in zip(Xs, Ys)]
     return devset
     
 def rus_dataset(df: pd.DataFrame,
