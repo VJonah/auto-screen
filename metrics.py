@@ -5,6 +5,7 @@ from math import sqrt
 
 # pkg imports
 import dspy
+import pydantic
 from tqdm import tqdm
 
 def precision(c: Counter) -> float:
@@ -112,8 +113,12 @@ def f1_evaluate(program: dspy.Program,
               bar_format="{postfix[0]} {postfix[1][value]:.3f} {l_bar}{bar}'| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, ' '{rate_fmt}]'",
               postfix=["F1 Score:", {'value': float('nan')}]) as t:
         for x in devset:
-            pred = program(**x.inputs())
-            score = metric(x, pred)
+            try:
+                pred = program(**x.inputs())
+                score = metric(x, pred)
+            except pydantic.ValidationError as e:
+                score = "ERROR"
+                print(f"Got a validation exception: {e}")
             c[score] += 1
         
             # scores
